@@ -1,5 +1,53 @@
+# on: [push, pull_request, workflow_dispatch]
+#
+# jobs:
+#   build:
+#     uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@main
+
+name: Build
+
 on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
-    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@main
+    runs-on: ubuntu-latest
+    name: Build Test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Cache west modules
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-zephyr-modules
+        with:
+          path: |
+            modules/
+            tools/
+            zephyr/
+            bootloader/
+            zmk/
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('config/west.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+
+      - name: Initialize workspace (west init)
+        uses: zmkfirmware/zmk-actions-toolkit-init@v1
+
+      - name: Export Zephyr CMake package
+        uses: zmkfirmware/zmk-actions-toolkit-export@v1
+
+      - name: Prepare variables
+        id: variables
+        run: |
+          if [ -f config/build.yaml ]; then
+            echo "::set-output name=config_path::config/build.yaml"
+          else
+            echo "::set-output name=config_path::build.yaml"
+          fi
+
+      - name: Build ZMK firmware
+        uses: zmkfirmware/zmk-actions-toolkit-build@v1
+        with:
+          config_path: ${{ steps.variables.outputs.config_path }}
